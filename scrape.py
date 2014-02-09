@@ -8,7 +8,11 @@ from bs4 import BeautifulSoup
 from dateutil.parser import *
 import requests
 
-def scrape_data():
+def scrape_restaurant_list():
+    """
+    Scrape the restaurant list HTML from the Lane County government site.
+    It's ASPX, so we have to set headers and pass form data for the POST to work.
+    """
     url = "http://apps.lanecounty.org/RIS/default.aspx"
     headers = {}
 
@@ -41,19 +45,50 @@ def scrape_data():
     data['__ASYNCPOST'] = "true"
     data['ctl00$cphBody$btnSearch'] = "Search"
 
+    "Requesting restaurant list."
     r = requests.post(url, headers=headers, data=data)
 
-    soup = BeautifulSoup(r.content)
+    "Restaurant list recieved."
+    if r.status_code == 200:
+
+        "Writing new list file."
+        with open('data/restaurant_list.html', 'wb') as writefile:
+            writefile.write(r.content)
+
+    else:
+        "Download failed."
+
+def parse_restaurant_list():
+    """
+    Parses the restaurant list HTML into a nice JSON file of restaurants.
+    """
+
+    "Parsing restaurant HTML."
+    with open('data/restaurant_list.html', 'rb') as readfile:
+        html = str(readfile.read())
+
+    soup = BeautifulSoup(html)
     rows = soup.select('tr.gridfield')
     rows += soup.select('tr.altgridfield')
 
     restaurant_list = []
 
+    print "Parsing %s restaurants." % len(rows)
     for row in rows:
         restaurant_dict = {}
         restaurant_dict['url'] = 'http://apps.lanecounty.org/RIS/%s' % row.select('a')[0]['href']
         restaurant_dict['name'] = row.select('a')[0].text
+        restaurant_dict['id'] = restaurant_dict['url'].split('http://apps.lanecounty.org/RIS/Restaurant.aspx?rid=')[1]
+
+        restaurant_dict['most_recent_inspection'] = {}
+        restaurant_dict['most_recent_inspection']['inspection_type'] = row.select('td')[1].text.replace('\n', '').replace('\r', '').strip()
+        restaurant_dict['most_recent_inspection']['score'] = row.select('td')[3].text.strip().replace('\n', '').replace('\r', '').strip()
+
+        parsed_date = parse(row.select('td')[2].text.replace('\n', '').replace('\r', '').strip())
+        restaurant_dict['most_recent_inspection']['inspection_date'] = int(time.mktime(parsed_date.timetuple()))
+
         restaurant_dict['dirty_address'] = row.select('td')[0].contents[3].replace(u'\xc2', '').replace(u'\xa0', ' ').encode('utf-8').strip()
+
         try:
             restaurant_dict['address'] = row.select('td')[0].contents[3].replace(u'\xc2', '').replace(u'\xa0', ' ').encode('utf-8').split(',')[0].strip()
             restaurant_dict['city'] = row.select('td')[0].contents[3].replace(u'\xc2', '').replace(u'\xa0', ' ').encode('utf-8').split(',')[1].split()[0].strip()
@@ -65,17 +100,13 @@ def scrape_data():
             restaurant_dict['state'] = None
             restaurant_dict['zip_code'] = None
 
-        restaurant_dict['most_recent_inspection'] = {}
-        restaurant_dict['most_recent_inspection']['inspection_type'] = row.select('td')[1].text.replace('\n', '').replace('\r', '').strip()
-        restaurant_dict['most_recent_inspection']['score'] = row.select('td')[3].text.strip().replace('\n', '').replace('\r', '').strip()
-
-        parsed_date = parse(row.select('td')[2].text.replace('\n', '').replace('\r', '').strip())
-        restaurant_dict['most_recent_inspection']['inspection_date'] = int(time.mktime(parsed_date.timetuple()))
-
+        print "  + %s" % restaurant_dict['name']
         restaurant_list.append(restaurant_dict)
 
-    with open('restaurant_list.json', 'wb') as writefile:
+    print "Writing %s restaurants to JSON." % len(restaurant_list)
+    with open('data/restaurant_list.json', 'wb') as writefile:
         writefile.write(json.dumps(restaurant_list))
 
 if __name__ == "__main__":
-    scrape_data()
+    scrape_restaurant_list()
+    parse_restaurant_list()
