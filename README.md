@@ -9,7 +9,7 @@ This code is open source under the MIT license. See ```LICENSE``` for complete d
 Follow [these instructions](http://blog.apps.npr.org/2013/06/06/how-to-setup-a-developers-environment.html) for getting your computer set up to work with a Python project.
 
 ### Get the code
-Check out this project from GitHub and cd to it's directory.
+Check out this project from GitHub and cd to its directory.
 ```
 git clone git@github.com:jeremyjbowers/orinspections.git
 cd orinspections
